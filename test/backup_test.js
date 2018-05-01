@@ -283,8 +283,10 @@ describe('Backup', () => {
 
       const OUR_NUMBER = '+12025550000';
       const CONTACT_ONE_NUMBER = '+12025550001';
+      const CONTACT_TWO_NUMBER = '+12025550002';
 
       async function wrappedLoadAttachment(attachment) {
+        console.log('wrappedLoadAttachment', { attachment });
         return _.omit(await loadAttachmentData(attachment), ['path']);
       }
 
@@ -360,14 +362,22 @@ describe('Backup', () => {
           wrappedLoadAttachment(attachment)
         );
 
+        const { contact } = message;
+
         return Object.assign({}, await loadThumbnails(message), {
+          contact:
+            contact && contact.avatar
+              ? Object.assign({}, contact, {
+                  avatar: await wrappedLoadAttachment(contact.avatar),
+                })
+              : contact,
           attachments: await Promise.all(promises),
         });
       }
 
       let backupDir;
       try {
-        const ATTACHMENT_COUNT = 2;
+        const ATTACHMENT_COUNT = 3;
         const MESSAGE_COUNT = 1;
         const CONVERSATION_COUNT = 1;
 
@@ -473,6 +483,55 @@ describe('Backup', () => {
               },
             ],
           },
+          contact: {
+            name: {
+              givenName: 'Someone',
+              familyName: 'Somewhere',
+            },
+            phone: [
+              {
+                value: CONTACT_TWO_NUMBER,
+                type: 1,
+              },
+            ],
+            avatar: {
+              contentType: 'image/png',
+              data: new Uint8Array([
+                3,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+              ]).buffer,
+            },
+          },
         };
 
         console.log('Backup test: Clear all data');
@@ -494,7 +553,7 @@ describe('Backup', () => {
           profileAvatar: {
             contentType: 'image/jpeg',
             data: new Uint8Array([
-              3,
+              4,
               2,
               3,
               4,
@@ -530,7 +589,7 @@ describe('Backup', () => {
             size: 64,
           },
           profileKey: new Uint8Array([
-            4,
+            5,
             2,
             3,
             4,

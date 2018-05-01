@@ -29,6 +29,8 @@ const PRIVATE = 'private';
 //     - `hasAttachments?: 1 | 0`
 //     - `hasVisualMediaAttachments?: 1 | undefined` (for media gallery ‘Media’ view)
 //     - `hasFileAttachments?: 1 | undefined` (for media gallery ‘Documents’ view)
+// Version 6
+//   - Contact: Write contact avatar to disk
 
 const INITIAL_SCHEMA_VERSION = 0;
 
@@ -37,7 +39,7 @@ const INITIAL_SCHEMA_VERSION = 0;
 // add more upgrade steps, we could design a pipeline that does this
 // incrementally, e.g. from version 0 / unknown -> 1, 1 --> 2, etc., similar to
 // how we do database migrations:
-exports.CURRENT_SCHEMA_VERSION = 5;
+exports.CURRENT_SCHEMA_VERSION = 6;
 
 // Public API
 exports.GROUP = GROUP;
@@ -214,6 +216,20 @@ const toVersion4 = exports._withSchemaVersion(
 );
 const toVersion5 = exports._withSchemaVersion(5, initializeAttachmentMetadata);
 
+const toVersion6 = exports._withSchemaVersion(6, async (message, context) => {
+  const { contact } = message;
+
+  if (!contact || !contact.avatar) {
+    return message;
+  }
+
+  return Object.assign({}, message, {
+    contact: Object.assign({}, message.contact, {
+      avatar: await Attachment.migrateDataToFileSystem(contact.avatar, context),
+    }),
+  });
+});
+
 // UpgradeStep
 exports.upgradeSchema = async (rawMessage, { writeNewAttachmentData } = {}) => {
   if (!isFunction(writeNewAttachmentData)) {
@@ -228,6 +244,7 @@ exports.upgradeSchema = async (rawMessage, { writeNewAttachmentData } = {}) => {
     toVersion3,
     toVersion4,
     toVersion5,
+    toVersion6,
   ];
 
   for (let i = 0, max = versions.length; i < max; i += 1) {
@@ -269,10 +286,11 @@ exports.createAttachmentDataWriter = writeExistingAttachmentData => {
 
     const message = exports.initializeSchemaVersion(rawMessage);
 
-    const { attachments, quote } = message;
+    const { attachments, quote, contact } = message;
     const hasFilesToWrite =
       (quote && quote.attachments && quote.attachments.length > 0) ||
-      (attachments && attachments.length > 0);
+      (attachments && attachments.length > 0) ||
+      (contact && contact.avatar);
 
     if (!hasFilesToWrite) {
       return message;
@@ -318,9 +336,26 @@ exports.createAttachmentDataWriter = writeExistingAttachmentData => {
       return omit(thumbnail, ['data']);
     });
 
+    // Returns null if there's no avatar so it doesn't interfere with assign precedence
+    const writeContactAvatar = async messageContact => {
+      if (!messageContact || !messageContact.avatar) {
+        return null;
+      }
+
+      const { avatar } = messageContact;
+      await writeExistingAttachmentData(avatar);
+
+      return {
+        contact: Object.assign({}, messageContact, {
+          avatar: omit(avatar, ['data']),
+        }),
+      };
+    };
+
     const messageWithoutAttachmentData = Object.assign(
       {},
       await writeThumbnails(message),
+      await writeContactAvatar(message.contact),
       {
         attachments: await Promise.all(
           (attachments || []).map(async attachment => {

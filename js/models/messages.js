@@ -590,6 +590,7 @@
             message.set({
               attachments: dataMessage.attachments,
               body: dataMessage.body,
+              contact: dataMessage.contact,
               conversationId: conversation.id,
               decrypted_at: now,
               errors: [],
