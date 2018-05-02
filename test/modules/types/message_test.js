@@ -132,8 +132,11 @@ describe('Message', () => {
         contact: {
           name: 'john',
           avatar: {
-            path: 'ab/abcdefghi',
-            data: stringToArrayBuffer('It’s easy if you try'),
+            isProfile: false,
+            avatar: {
+              path: 'ab/abcdefghi',
+              data: stringToArrayBuffer('It’s easy if you try'),
+            },
           },
         },
       };
@@ -144,7 +147,10 @@ describe('Message', () => {
         contact: {
           name: 'john',
           avatar: {
-            path: 'ab/abcdefghi',
+            isProfile: false,
+            avatar: {
+              path: 'ab/abcdefghi',
+            },
           },
         },
       };
@@ -497,7 +503,7 @@ describe('Message', () => {
       assert.deepEqual(result, message);
     });
 
-    it('eliminates thumbnails with no data fielkd', async () => {
+    it('eliminates thumbnails with no data field', async () => {
       const upgradeAttachment = sinon
         .stub()
         .throws(new Error("Shouldn't be called"));
@@ -568,6 +574,348 @@ describe('Message', () => {
       };
       const result = await upgradeVersion(message);
       assert.deepEqual(result, expected);
+    });
+  });
+
+  describe('_cleanAndWriteContactAvatar', () => {
+    const NUMBER = '+12025550099';
+
+    it('handles message with no contact', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, message);
+    });
+
+    it('handles message with no avatar in contact', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+        },
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, message);
+    });
+
+    it('removes contact avatar if it has no sub-avatar', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+          avatar: {
+            isProfile: true,
+          },
+        },
+      };
+      const expected = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+        },
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, expected);
+    });
+
+    it('writes avatar to disk', async () => {
+      const upgradeAttachment = async () => {
+        return {
+          path: 'abc/abcdefg',
+        };
+      };
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+          email: [
+            {
+              type: 2,
+              value: 'someone@somewhere.com',
+            },
+          ],
+          address: [
+            {
+              type: 1,
+              street: '5 Somewhere Ave.',
+            },
+          ],
+          avatar: {
+            isProfile: true,
+            avatar: {
+              contentType: 'image/png',
+              data: stringToArrayBuffer('It’s easy if you try'),
+            },
+          },
+        },
+      };
+      const expected = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+          email: [
+            {
+              type: 2,
+              value: 'someone@somewhere.com',
+            },
+          ],
+          address: [
+            {
+              type: 1,
+              street: '5 Somewhere Ave.',
+            },
+          ],
+          avatar: {
+            isProfile: true,
+            avatar: {
+              path: 'abc/abcdefg',
+            },
+          },
+        },
+      };
+
+      const result = await upgradeVersion(message, context);
+      assert.deepEqual(result, expected);
+    });
+
+    it('removes number element if it ends up with no value', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+            },
+          ],
+          email: [
+            {
+              value: 'someone@somewhere.com',
+            },
+          ],
+        },
+      };
+      const expected = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          email: [
+            {
+              type: 1,
+              value: 'someone@somewhere.com',
+            },
+          ],
+        },
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, expected);
+    });
+
+    it('drops address if it has no real values', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              value: NUMBER,
+            },
+          ],
+          address: [
+            {
+              type: 1,
+            },
+          ],
+        },
+      };
+      const expected = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              value: NUMBER,
+              type: 1,
+            },
+          ],
+        },
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, expected);
+    });
+
+    it('removes contact if no name.displayName or organization', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            name: 'Someone',
+          },
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+        },
+      };
+      const expected = {
+        body: 'hey there!',
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, expected);
+    });
+
+    it('removes contact completely if no values remain', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          name: {
+            displayName: 'Someone Somewhere',
+          },
+          number: [
+            {
+              type: 1,
+            },
+          ],
+          email: [
+            {
+              type: 1,
+            },
+          ],
+        },
+      };
+      const expected = {
+        body: 'hey there!',
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, expected);
+    });
+
+    it('handles a contact with just organization', async () => {
+      const upgradeAttachment = sinon
+        .stub()
+        .throws(new Error("Shouldn't be called"));
+      const upgradeVersion = Message._cleanAndWriteContactAvatar(
+        upgradeAttachment
+      );
+
+      const message = {
+        body: 'hey there!',
+        contact: {
+          organization: 'Somewhere Consulting',
+          number: [
+            {
+              type: 1,
+              value: NUMBER,
+            },
+          ],
+        },
+      };
+      const result = await upgradeVersion(message);
+      assert.deepEqual(result, message);
     });
   });
 });

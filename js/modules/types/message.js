@@ -1,4 +1,4 @@
-const { isFunction, isString, omit } = require('lodash');
+const { isFunction, isString, omit, compact, map } = require('lodash');
 
 const Attachment = require('./attachment');
 const Errors = require('./errors');
@@ -196,6 +196,121 @@ exports._mapQuotedAttachments = upgradeAttachment => async (
   });
 };
 
+function validateContact(contact) {
+  const { name, number, email, address, organization } = contact;
+
+  if ((!name || !name.displayName) && !organization) {
+    console.log("Contact had neither 'displayName' nor 'organization'");
+    return false;
+  }
+
+  if (
+    (!number || !number.length) &&
+    (!email || !email.length) &&
+    (!address || !address.length)
+  ) {
+    console.log('Contact had no included numbers, email or addresses');
+    return false;
+  }
+
+  return true;
+}
+
+function cleanContact(contact) {
+  function cleanBasicItem(item) {
+    if (!item.value) {
+      return null;
+    }
+
+    return Object.assign({}, item, {
+      type: item.type || 1,
+    });
+  }
+
+  function cleanAddress(address) {
+    if (!address) {
+      return null;
+    }
+
+    if (
+      !address.street &&
+      !address.pobox &&
+      !address.neighborhood &&
+      !address.city &&
+      !address.region &&
+      !address.postcode &&
+      !address.country
+    ) {
+      return null;
+    }
+
+    return Object.assign({}, address, {
+      type: address.type || 1,
+    });
+  }
+
+  function cleanAvatar(avatar) {
+    if (!avatar) {
+      return null;
+    }
+
+    return {
+      avatar: Object.assign({}, avatar, {
+        isProfile: avatar.isProfile || 1,
+      }),
+    };
+  }
+
+  function addArrayKey(key, array) {
+    if (!array || !array.length) {
+      return null;
+    }
+
+    return {
+      [key]: array,
+    };
+  }
+
+  return Object.assign(
+    {},
+    omit(contact, ['avatar', 'number', 'email', 'address']),
+    cleanAvatar(contact.avatar),
+    addArrayKey('number', compact(map(contact.number, cleanBasicItem))),
+    addArrayKey('email', compact(map(contact.email, cleanBasicItem))),
+    addArrayKey('address', compact(map(contact.address, cleanAddress)))
+  );
+}
+
+exports._cleanAndWriteContactAvatar = upgradeAttachment => async (
+  message,
+  context
+) => {
+  const { contact } = message;
+  if (!contact) {
+    return message;
+  }
+
+  const { avatar } = contact;
+  const contactWithUpdatedAvatar =
+    avatar && avatar.avatar
+      ? Object.assign({}, contact, {
+          avatar: Object.assign({}, avatar, {
+            avatar: await upgradeAttachment(avatar.avatar, context),
+          }),
+        })
+      : omit(contact, ['avatar']);
+
+  const contactWithCleanedElements = cleanContact(contactWithUpdatedAvatar);
+  if (!validateContact(contactWithCleanedElements)) {
+    console.log('Found contact to be invalid, dropping');
+    return omit(message, ['contact']);
+  }
+
+  return Object.assign({}, message, {
+    contact: contactWithCleanedElements,
+  });
+};
+
 const toVersion0 = async message => exports.initializeSchemaVersion(message);
 
 const toVersion1 = exports._withSchemaVersion(
@@ -216,19 +331,10 @@ const toVersion4 = exports._withSchemaVersion(
 );
 const toVersion5 = exports._withSchemaVersion(5, initializeAttachmentMetadata);
 
-const toVersion6 = exports._withSchemaVersion(6, async (message, context) => {
-  const { contact } = message;
-
-  if (!contact || !contact.avatar) {
-    return message;
-  }
-
-  return Object.assign({}, message, {
-    contact: Object.assign({}, message.contact, {
-      avatar: await Attachment.migrateDataToFileSystem(contact.avatar, context),
-    }),
-  });
-});
+const toVersion6 = exports._withSchemaVersion(
+  6,
+  exports._cleanAndWriteContactAvatar(Attachment.migrateDataToFileSystem)
+);
 
 // UpgradeStep
 exports.upgradeSchema = async (rawMessage, { writeNewAttachmentData } = {}) => {
@@ -343,11 +449,19 @@ exports.createAttachmentDataWriter = writeExistingAttachmentData => {
       }
 
       const { avatar } = messageContact;
-      await writeExistingAttachmentData(avatar);
+      if (avatar && !avatar.avatar) {
+        return {
+          contact: omit(messageContact, ['avatar']),
+        };
+      }
+
+      await writeExistingAttachmentData(avatar.avatar);
 
       return {
         contact: Object.assign({}, messageContact, {
-          avatar: omit(avatar, ['data']),
+          avatar: Object.assign({}, avatar, {
+            avatar: omit(avatar.avatar, ['data']),
+          }),
         }),
       };
     };
