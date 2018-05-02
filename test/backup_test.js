@@ -286,7 +286,6 @@ describe('Backup', () => {
       const CONTACT_TWO_NUMBER = '+12025550002';
 
       async function wrappedLoadAttachment(attachment) {
-        console.log('wrappedLoadAttachment', { attachment });
         return _.omit(await loadAttachmentData(attachment), ['path']);
       }
 
@@ -364,11 +363,15 @@ describe('Backup', () => {
 
         const { contact } = message;
 
+        console.log('loadAllFileFromDisk', contact);
+
         return Object.assign({}, await loadThumbnails(message), {
           contact:
-            contact && contact.avatar
+            contact && contact.avatar && contact.avatar.avatar
               ? Object.assign({}, contact, {
-                  avatar: await wrappedLoadAttachment(contact.avatar),
+                  avatar: Object.assign({}, contact.avatar, {
+                    avatar: await wrappedLoadAttachment(contact.avatar.avatar),
+                  }),
                 })
               : contact,
           attachments: await Promise.all(promises),
@@ -485,51 +488,53 @@ describe('Backup', () => {
           },
           contact: {
             name: {
-              givenName: 'Someone',
-              familyName: 'Somewhere',
+              displayName: 'Someone Somewhere',
             },
-            phone: [
+            number: [
               {
                 value: CONTACT_TWO_NUMBER,
                 type: 1,
               },
             ],
             avatar: {
-              contentType: 'image/png',
-              data: new Uint8Array([
-                3,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-              ]).buffer,
+              isProfile: false,
+              avatar: {
+                contentType: 'image/png',
+                data: new Uint8Array([
+                  3,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7,
+                  8,
+                ]).buffer,
+              },
             },
           },
         };

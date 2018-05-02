@@ -732,9 +732,9 @@ async function exportConversation(db, conversation, options) {
         }
 
         const { contact } = message;
-        if (contact && contact.avatar) {
+        if (contact && contact.avatar && contact.avatar.avatar) {
           const exportContactAvatar = () =>
-            writeContactAvatar(contact.avatar, {
+            writeContactAvatar(contact.avatar.avatar, {
               dir: attachmentsDir,
               message,
               key,
@@ -926,9 +926,9 @@ async function loadAttachments(dir, getName, options) {
   );
 
   const { contact } = message;
-  if (contact && contact.avatar) {
+  if (contact && contact.avatar && contact.avatar.avatar) {
     const name = `${getName(message, 0)}-contact-avatar`;
-    await readAttachment(dir, contact.avatar, name, options);
+    await readAttachment(dir, contact.avatar.avatar, name, options);
   }
 
   console.log('loadAttachments', { message });

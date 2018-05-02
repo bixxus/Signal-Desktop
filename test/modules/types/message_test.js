@@ -699,7 +699,7 @@ describe('Message', () => {
             },
           ],
           avatar: {
-            isProfile: true,
+            otherKey: 'otherValue',
             avatar: {
               contentType: 'image/png',
               data: stringToArrayBuffer('It’s easy if you try'),
@@ -732,7 +732,8 @@ describe('Message', () => {
             },
           ],
           avatar: {
-            isProfile: true,
+            otherKey: 'otherValue',
+            isProfile: false,
             avatar: {
               path: 'abc/abcdefg',
             },

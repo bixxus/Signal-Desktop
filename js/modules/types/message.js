@@ -256,7 +256,7 @@ function cleanContact(contact) {
 
     return {
       avatar: Object.assign({}, avatar, {
-        isProfile: avatar.isProfile || 1,
+        isProfile: avatar.isProfile || false,
       }),
     };
   }
